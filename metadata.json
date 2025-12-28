@@ -2,6 +2,7 @@
   "name": "KumbhAI - Temple Crowd Management",
   "description": "An AI-powered system for managing crowd density, darshan bookings, and emergency response for large scale pilgrimage events.",
   "requestFramePermissions": [
-    "geolocation"
+    "geolocation",
+    "camera"
   ]
 }

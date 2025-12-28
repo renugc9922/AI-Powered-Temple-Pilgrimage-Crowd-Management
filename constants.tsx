@@ -10,6 +10,12 @@ export const LOCATIONS = [
   { id: 'waiting-area', name: 'Queue Waiting Area', x: 35, y: 30 },
 ];
 
+export const MEDICAL_TENTS = [
+  { id: 'med-1', name: 'Main Medical Center (Sector 1)', lat: 25.4484, lng: 81.8845 },
+  { id: 'med-2', name: 'Emergency Post (Sector 4)', lat: 25.4461, lng: 81.8801 },
+  { id: 'med-3', name: 'Red Cross Tent (Gate B)', lat: 25.4510, lng: 81.8890 },
+];
+
 export const MOCK_USER = {
   name: 'Rajesh Kumar',
   role: UserRole.PILGRIM,
