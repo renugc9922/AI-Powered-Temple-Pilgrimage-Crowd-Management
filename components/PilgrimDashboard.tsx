@@ -1,263 +1,345 @@
 
-import React, { useState } from 'react';
-import { MOCK_USER, MEDICAL_TENTS } from '../constants';
+import React, { useState, useEffect, useMemo } from 'react';
+import { MEDICAL_TENTS, LOCATIONS } from '../constants';
 import { AIAssistant } from './AIAssistant';
-import { VeoGenerator } from './VeoGenerator';
 
 interface PilgrimDashboardProps {
+  identity: string;
   onTriggerSOS: (lat?: number, lng?: number) => void;
 }
 
-export const PilgrimDashboard: React.FC<PilgrimDashboardProps> = ({ onTriggerSOS }) => {
-  const [bookingStatus] = useState(MOCK_USER.booking);
+const USER_START_MAP = { x: 25, y: 40 };
+
+export const PilgrimDashboard: React.FC<PilgrimDashboardProps> = ({ identity, onTriggerSOS }) => {
+  const passStorageKey = `kumbhai_pass_${identity}`;
+  
+  const [bookingStatus] = useState(() => {
+    const saved = localStorage.getItem(passStorageKey);
+    if (saved) return JSON.parse(saved);
+    return {
+      id: `BK-${identity.slice(-4)}-${Math.floor(1000 + Math.random() * 9000)}`,
+      name: identity.includes('@') ? identity.split('@')[0] : `Pilgrim ${identity.slice(-4)}`,
+      timeSlot: '14:00 - 15:00',
+      status: 'Confirmed',
+      queuePosition: Math.floor(Math.random() * 800) + 100,
+      estimatedWaitMinutes: Math.floor(Math.random() * 60) + 15
+    };
+  });
+
   const [sosLoading, setSosLoading] = useState(false);
   const [medLoading, setMedLoading] = useState(false);
-  const [sosStatus, setSosStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [navLoadingId, setNavLoadingId] = useState<string | null>(null);
+  const [selectedPointId, setSelectedPointId] = useState<string | null>(null);
+  const [sosStatus, setSosStatus] = useState<'idle' | 'success'>('idle');
   const [showPass, setShowPass] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  useEffect(() => {
+    localStorage.setItem(passStorageKey, JSON.stringify(bookingStatus));
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [bookingStatus, passStorageKey]);
 
   const handleSOS = () => {
     if (sosStatus === 'success' || sosLoading) return;
     setSosLoading(true);
-    setSosStatus('idle');
     if ("vibrate" in navigator) navigator.vibrate([200, 100, 200]);
-
     const triggerAndSuccess = (lat?: number, lng?: number) => {
       onTriggerSOS(lat, lng);
       setSosLoading(false);
       setSosStatus('success');
       setTimeout(() => setSosStatus('idle'), 10000);
     };
-
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
-        (position) => triggerAndSuccess(position.coords.latitude, position.coords.longitude),
+        (p) => triggerAndSuccess(p.coords.latitude, p.coords.longitude),
         () => triggerAndSuccess(),
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+        { timeout: 8000 }
       );
     } else triggerAndSuccess();
   };
 
-  const handleFindMedical = () => {
-    setMedLoading(true);
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude: uLat, longitude: uLng } = position.coords;
-          let nearest = MEDICAL_TENTS[0];
-          let minDistance = Infinity;
-          MEDICAL_TENTS.forEach(tent => {
-            const dist = Math.sqrt(Math.pow(tent.lat - uLat, 2) + Math.pow(tent.lng - uLng, 2));
-            if (dist < minDistance) { minDistance = dist; nearest = tent; }
-          });
-          const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${uLat},${uLng}&destination=${nearest.lat},${nearest.lng}&travelmode=walking`;
-          window.open(mapsUrl, '_blank');
-          setMedLoading(false);
-        },
-        () => {
-          alert("Could not access location. Please follow physical signage for Medical Tents.");
-          setMedLoading(false);
-        },
-        { enableHighAccuracy: true, timeout: 5000 }
-      );
-    } else {
-      alert("Geolocation is not supported by your browser.");
-      setMedLoading(false);
-    }
+  const handleNavigateTo = (point: any) => {
+    setNavLoadingId(point.id);
+    setSelectedPointId(point.id);
+    if ("vibrate" in navigator) navigator.vibrate(50);
+    setTimeout(() => {
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${point.lat},${point.lng}&travelmode=walking`;
+      window.open(url, '_blank');
+      setNavLoadingId(null);
+    }, 1500);
   };
 
+  const activePoint = useMemo(() => LOCATIONS.find(p => p.id === selectedPointId), [selectedPointId]);
+
   return (
-    <div className="space-y-8 animate-in fade-in duration-500 pb-20">
-      <div className="bg-gradient-to-br from-orange-600 to-red-700 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden">
-        <div className="relative z-10">
-          <h2 className="text-2xl font-bold">Namaste, {MOCK_USER.name}</h2>
-          <p className="opacity-90">Kumbh Mela Smart Assistant is active.</p>
-          <div className="mt-8 grid grid-cols-2 gap-4">
-            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-4">
-              <p className="text-[10px] uppercase font-bold tracking-widest opacity-70">Current Queue</p>
-              <p className="text-3xl font-black">{bookingStatus.queuePosition}</p>
-            </div>
-            <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl p-4">
-              <p className="text-[10px] uppercase font-bold tracking-widest opacity-70">Wait Time</p>
-              <p className="text-3xl font-black">{bookingStatus.estimatedWaitMinutes}<span className="text-lg ml-1">min</span></p>
-            </div>
-          </div>
-        </div>
-        <div className="absolute top-0 right-0 p-8 opacity-10 transform translate-x-4 -translate-y-4 select-none">
-          <span className="text-[12rem]">🕉️</span>
+    <div className="space-y-10 animate-in fade-in duration-700 pb-24">
+      <div className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-[70] transition-all duration-700 ${isOffline ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0 pointer-events-none'}`}>
+        <div className="bg-slate-900/90 backdrop-blur-xl text-white px-6 py-3 rounded-full text-[10px] font-black uppercase tracking-[0.2em] shadow-2xl flex items-center space-x-3 border border-white/10">
+          <div className="w-2.5 h-2.5 bg-orange-500 rounded-full animate-pulse shadow-[0_0_8px_#f97316]"></div>
+          <span>Offline Recovery Active</span>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-6">
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center">
-              <span className="mr-2">🎫</span> Your Darshan Pass
+      <div className="divine-gradient rounded-[3rem] p-8 sm:p-12 text-white shadow-2xl shadow-orange-950/20 relative overflow-hidden group">
+        <div className="absolute top-0 right-0 p-12 opacity-10 transform group-hover:scale-110 group-hover:rotate-12 transition-all duration-[2s] pointer-events-none">
+          <span className="text-[18rem]">🕉️</span>
+        </div>
+        <div className="relative z-10">
+          <div className="flex flex-col sm:flex-row justify-between items-start gap-6">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.3em] opacity-60 mb-2">Pilgrim Identity Card</p>
+              <h2 className="text-4xl sm:text-5xl font-black tracking-tighter mb-1">Namaste, {bookingStatus.name}</h2>
+              <p className="text-lg font-bold opacity-80 font-mono">UID: {bookingStatus.id}</p>
+            </div>
+            <div className="bg-white/10 backdrop-blur-xl px-4 py-2 rounded-2xl text-[10px] font-black tracking-widest uppercase border border-white/20 shadow-inner">
+              {isOffline ? '📶 CACHED SESSION' : '🌐 LIVE SYNCED'}
+            </div>
+          </div>
+          <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6">
+            <div className="bg-white/10 backdrop-blur-md border border-white/10 rounded-3xl p-6 hover:bg-white/15 transition-all">
+              <p className="text-[10px] uppercase font-black tracking-widest opacity-60 mb-1">Queue Position</p>
+              <p className="text-4xl font-black tracking-tighter">{bookingStatus.queuePosition}</p>
+            </div>
+            <div className="bg-white/10 backdrop-blur-md border border-white/10 rounded-3xl p-6 hover:bg-white/15 transition-all">
+              <p className="text-[10px] uppercase font-black tracking-widest opacity-60 mb-1">Estimated Wait</p>
+              <p className="text-4xl font-black tracking-tighter">{bookingStatus.estimatedWaitMinutes}<span className="text-lg ml-1 opacity-60">m</span></p>
+            </div>
+            <div className="hidden md:block bg-white/10 backdrop-blur-md border border-white/10 rounded-3xl p-6">
+              <p className="text-[10px] uppercase font-black tracking-widest opacity-60 mb-1">Current Sector</p>
+              <p className="text-xl font-black tracking-tight mt-2 uppercase">Ghat-04</p>
+            </div>
+            <div className="hidden md:block bg-white/10 backdrop-blur-md border border-white/10 rounded-3xl p-6">
+              <p className="text-[10px] uppercase font-black tracking-widest opacity-60 mb-1">Status</p>
+              <p className="text-xl font-black tracking-tight mt-2 uppercase">ON TRACK</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
+        <div className="md:col-span-5 space-y-8">
+          <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-200/60 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 px-5 py-2 bg-green-50 text-green-600 text-[10px] font-black uppercase tracking-widest border-b border-l border-green-100 rounded-bl-[2rem] shadow-sm">
+              Secured Pass
+            </div>
+            <h3 className="text-2xl font-black text-slate-900 mb-6 flex items-center tracking-tight">
+              <span className="mr-4 text-3xl">🎫</span> Spiritual Entry
             </h3>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center py-3 border-b border-slate-50 text-sm">
-                <span className="text-slate-500">Pass ID</span>
-                <span className="font-mono font-bold text-slate-900">{bookingStatus.id}</span>
-              </div>
-              <div className="flex justify-between items-center py-3 border-b border-slate-50 text-sm">
-                <span className="text-slate-500">Valid Slot</span>
-                <span className="font-bold text-slate-900">{bookingStatus.timeSlot}</span>
+            <div className="space-y-6">
+              <div className="flex justify-between items-center py-4 border-b border-slate-50">
+                <span className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Selected Slot</span>
+                <span className="font-black text-slate-900 text-lg">{bookingStatus.timeSlot}</span>
               </div>
               <button 
                 onClick={() => setShowPass(true)}
-                className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold hover:bg-slate-800 active:scale-[0.98] transition-all flex items-center justify-center shadow-lg shadow-slate-200"
+                className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black hover:bg-slate-800 transition-all flex items-center justify-center shadow-xl shadow-slate-200 group-hover:scale-[1.02]"
               >
-                <span className="mr-2">📲</span> Show Digital Pass
+                <span className="mr-3">📲</span> ACCESS DIGITAL PASS
               </button>
             </div>
           </div>
-          <AIAssistant />
-        </div>
 
-        <div className="space-y-6">
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-            <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center">
-              <span className="mr-2">🛡️</span> Safety & Emergency
+          <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-200/60 group">
+            <h3 className="text-2xl font-black text-slate-900 mb-6 flex items-center tracking-tight">
+              <span className="mr-4 text-3xl">🛡️</span> Divine Safety
             </h3>
             <div className="space-y-4">
-              <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 flex items-start">
-                <span className="text-xl mr-3 mt-0.5">📢</span>
-                <div>
-                  <p className="text-sm font-bold text-blue-900 leading-tight">Crowd Advisory</p>
-                  <p className="text-xs text-blue-700 mt-1">Movement is steady. No major bottlenecks detected on your route.</p>
+              <button 
+                onClick={handleSOS} 
+                disabled={sosLoading} 
+                className={`w-full py-6 rounded-[2rem] text-sm font-black transition-all shadow-2xl relative overflow-hidden ${
+                  sosStatus === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white hover:bg-red-700'
+                }`}
+              >
+                {sosLoading && <div className="absolute inset-0 shimmer opacity-20"></div>}
+                <span className="relative z-10 flex items-center justify-center">
+                  {sosLoading ? 'DISPATCHING ASSISTANCE...' : sosStatus === 'success' ? '✓ ALERT BROADCASTED' : '🆘 EMERGENCY SOS'}
+                </span>
+              </button>
+              <button 
+                onClick={() => {
+                  setMedLoading(true);
+                  setTimeout(() => {
+                    const tent = MEDICAL_TENTS[0];
+                    window.open(`https://www.google.com/maps/dir/?api=1&destination=${tent.lat},${tent.lng}`, '_blank');
+                    setMedLoading(false);
+                  }, 1000);
+                }} 
+                disabled={medLoading} 
+                className="w-full bg-slate-50 text-slate-700 py-5 rounded-[2rem] text-[11px] font-black uppercase tracking-[0.2em] border-2 border-slate-100 hover:bg-slate-100 transition-all flex items-center justify-center"
+              >
+                {medLoading ? 'Locating Station...' : '🏥 Find Medical Post'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="md:col-span-7">
+          <AIAssistant />
+        </div>
+      </div>
+
+      <div className="bg-white p-8 sm:p-10 rounded-[3.5rem] shadow-sm border border-slate-200/60 overflow-hidden">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-10">
+          <div>
+            <h3 className="text-2xl font-black text-slate-900 tracking-tight flex items-center">
+              <span className="mr-4 text-3xl">🗺️</span> Smart Flow Navigation
+            </h3>
+            <p className="text-slate-400 text-sm font-medium mt-1">Real-time pathfinding across high-density sectors.</p>
+          </div>
+          <div className="flex items-center space-x-2 bg-slate-50 px-4 py-2 rounded-2xl border border-slate-100">
+             <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></div>
+             <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Satellite Active</span>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+          <div className="lg:col-span-2 relative aspect-video bg-slate-950 rounded-[2.5rem] border border-slate-200 overflow-hidden shadow-inner group">
+            <img 
+                src="https://picsum.photos/seed/kumbh-map-final/1600/900?grayscale" 
+                className="absolute inset-0 w-full h-full object-cover opacity-20 group-hover:scale-105 transition-transform duration-[4s]" 
+                alt="Tactical Map" 
+            />
+            
+            <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+              {activePoint && (
+                <path 
+                  d={`M ${USER_START_MAP.x} ${USER_START_MAP.y} Q ${(USER_START_MAP.x + activePoint.x) / 2} ${(USER_START_MAP.y + activePoint.y) / 2 - 15}, ${activePoint.x} ${activePoint.y}`}
+                  fill="none"
+                  stroke="#f97316"
+                  strokeWidth="0.8"
+                  strokeDasharray="4,4"
+                  className="animate-dash"
+                />
+              )}
+            </svg>
+
+            {LOCATIONS.map((point: any) => (
+              <div 
+                key={point.id} 
+                className={`absolute transform -translate-x-1/2 -translate-y-1/2 transition-all duration-700 ${selectedPointId === point.id ? 'z-30 scale-125' : 'z-10'}`}
+                style={{ left: `${point.x}%`, top: `${point.y}%` }}
+              >
+                <div className={`w-4 h-4 rounded-full border-4 border-white shadow-2xl transition-all ${selectedPointId === point.id ? 'bg-orange-500 ring-8 ring-orange-500/20' : 'bg-slate-500/60'}`}></div>
+              </div>
+            ))}
+
+            <div className="absolute top-[40%] left-[25%] transform -translate-x-1/2 -translate-y-1/2 z-20">
+              <div className="w-12 h-12 bg-blue-500/20 rounded-full animate-ping absolute -inset-3"></div>
+              <div className="w-8 h-8 bg-blue-600 rounded-2xl border-2 border-white flex items-center justify-center shadow-2xl rotate-45">
+                 <div className="w-2.5 h-2.5 bg-white rounded-full -rotate-45 animate-pulse"></div>
+              </div>
+            </div>
+
+            {navLoadingId && (
+              <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md flex items-center justify-center z-50">
+                <div className="text-center bg-white/10 p-8 rounded-[2rem] border border-white/10">
+                  <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-6"></div>
+                  <p className="text-[11px] font-black text-white uppercase tracking-[0.3em] animate-pulse">Recalculating Flow Path...</p>
                 </div>
               </div>
-              
-              <div className="pt-2 grid grid-cols-1 gap-3">
-                <button onClick={handleSOS} disabled={sosLoading} className={`group py-4 rounded-xl text-base font-black transition-all shadow-xl active:scale-95 ${sosStatus === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white hover:bg-red-700'}`}>
-                   {sosLoading ? 'TRANSMITTING...' : sosStatus === 'success' ? '✓ ALERT BROADCASTED' : '🆘 SEND SOS EMERGENCY'}
-                </button>
-                <button onClick={handleFindMedical} disabled={medLoading} className="bg-slate-50 text-slate-700 py-3 rounded-xl text-sm font-bold border border-slate-200 hover:bg-slate-100 transition-colors flex items-center justify-center">
-                  {medLoading ? 'FINDING...' : '🏥 Find Nearest Medical Tent'}
-                </button>
-              </div>
-            </div>
+            )}
           </div>
-          <VeoGenerator />
+
+          <div className="space-y-6">
+             <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">Divine Destinations</p>
+             <div className="space-y-3 max-h-[450px] overflow-y-auto no-scrollbar pr-1">
+                {LOCATIONS.map((point: any) => (
+                  <button 
+                    key={point.id} 
+                    onClick={() => handleNavigateTo(point)}
+                    className={`w-full group relative flex items-center p-5 rounded-3xl border-2 transition-all text-left ${
+                      selectedPointId === point.id 
+                        ? 'bg-orange-50/80 border-orange-500/40 shadow-xl shadow-orange-100 ring-1 ring-orange-200' 
+                        : 'bg-white border-slate-100 hover:border-slate-200'
+                    }`}
+                  >
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all shadow-sm ${
+                      selectedPointId === point.id ? 'bg-orange-600 text-white scale-110' : 'bg-slate-50 text-slate-400 group-hover:bg-slate-100'
+                    }`}>
+                      {navLoadingId === point.id ? (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      ) : (
+                        <span className="text-xl">📍</span>
+                      )}
+                    </div>
+                    <div className="ml-5 flex-1">
+                      <span className={`text-[13px] font-black block tracking-tight ${selectedPointId === point.id ? 'text-orange-950' : 'text-slate-800'}`}>
+                        {point.name}
+                      </span>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <div className={`w-1.5 h-1.5 rounded-full ${point.id === 'gate-a' ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                          {point.id === 'gate-a' ? 'HEAVY TRAFFIC' : 'SMOOTH PASSAGE'}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+             </div>
+             
+             {activePoint && (
+               <div className="mt-8 p-6 bg-slate-900 text-white rounded-[2.5rem] animate-in slide-in-from-bottom-6 duration-500 shadow-2xl relative overflow-hidden">
+                 <div className="absolute top-0 right-0 p-4 opacity-5">
+                    <span className="text-6xl">✨</span>
+                 </div>
+                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-400 mb-2">Tactical ETA</p>
+                 <p className="text-3xl font-black tracking-tighter">~12 Mins</p>
+                 <p className="text-[11px] font-medium mt-2 opacity-60 leading-relaxed italic">"Optimal walking path detected via Sector B to avoid current cluster at Main Plaza."</p>
+               </div>
+             )}
+          </div>
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center">
-          <span className="mr-2">🗺️</span> Dynamic Navigation
-        </h3>
-        <div className="relative aspect-[21/9] bg-slate-100 rounded-xl border border-slate-200 overflow-hidden group">
-          <img src="https://picsum.photos/seed/temple-map/1600/700" className="w-full h-full object-cover opacity-60 grayscale group-hover:grayscale-0 transition-all duration-700" alt="Map View" />
-          <div className="absolute top-[40%] left-[25%] w-6 h-6 z-20">
-            <div className="absolute inset-0 bg-blue-500 rounded-full animate-ping opacity-50"></div>
-            <div className="w-6 h-6 bg-blue-600 rounded-full border-2 border-white flex items-center justify-center shadow-lg">
-              <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Digital Pass Modal */}
       {showPass && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300">
-          <div className="relative w-full max-w-sm animate-in zoom-in-95 duration-500">
-            {/* Close Button */}
-            <button 
-              onClick={() => setShowPass(false)}
-              className="absolute -top-12 right-0 text-white bg-white/10 hover:bg-white/20 p-2 rounded-full transition-all"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-2xl animate-in fade-in duration-500">
+          <div className="relative w-full max-w-sm animate-in zoom-in-95 duration-700">
+            <button onClick={() => setShowPass(false)} className="absolute -top-16 right-0 text-white p-3 hover:rotate-90 transition-all">
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
-
-            {/* The Physical-looking Ticket */}
-            <div className="bg-white rounded-[2rem] overflow-hidden shadow-2xl relative flex flex-col border-4 border-orange-500">
-              {/* Top Section - Brand/Header */}
-              <div className="bg-orange-600 p-6 text-white text-center relative">
-                <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[radial-gradient(circle_at_center,_white_1px,_transparent_1px)] bg-[length:20px_20px]"></div>
-                <div className="text-3xl mb-1">🕉️</div>
-                <h4 className="text-xl font-black uppercase tracking-tighter">Kumbh Mela 2024</h4>
-                <p className="text-[10px] font-bold opacity-80 uppercase tracking-widest mt-1">Special Darshan Pass</p>
-                
-                {/* Hologram Strip */}
-                <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-orange-400 via-yellow-200 to-orange-400 animate-pulse"></div>
+            <div className="bg-white rounded-[3.5rem] overflow-hidden shadow-[0_35px_60px_-15px_rgba(0,0,0,0.5)] border-4 border-orange-500/30">
+              <div className="bg-orange-600 p-10 text-white text-center relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-full shimmer opacity-10"></div>
+                <h4 className="text-2xl font-black uppercase tracking-tighter">Kumbh Mela 2024</h4>
+                <p className="text-[10px] font-bold opacity-70 uppercase tracking-[0.3em] mt-2">Verified Darshan Pass</p>
               </div>
-
-              {/* Middle Section - Ticket Content */}
-              <div className="p-8 space-y-6 relative bg-white">
-                {/* Status Badge */}
-                <div className="absolute top-4 right-4 flex items-center bg-green-50 px-3 py-1 rounded-full border border-green-100">
-                   <span className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
-                   <span className="text-[10px] font-black text-green-700 uppercase">ACTIVE</span>
-                </div>
-
-                <div className="space-y-4">
+              <div className="p-10 space-y-8">
+                <div className="text-center space-y-6">
+                  <div className="p-6 bg-slate-50 rounded-[3rem] border-2 border-slate-100 flex items-center justify-center shadow-inner group">
+                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${bookingStatus.id}-${identity}&color=0f172a`} className="w-48 h-48 group-hover:scale-105 transition-transform" alt="QR" />
+                  </div>
                   <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pilgrim Name</p>
-                    <p className="text-lg font-black text-slate-900">{MOCK_USER.name}</p>
+                    <p className="text-[11px] font-black text-slate-300 uppercase tracking-widest mb-1">Pilgrim Name</p>
+                    <p className="text-2xl font-black text-slate-900 tracking-tight">{bookingStatus.name}</p>
+                    <p className="text-[12px] font-mono text-slate-400 mt-1 font-bold">UID: {bookingStatus.id}</p>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pass ID</p>
-                      <p className="font-mono font-black text-slate-800">{bookingStatus.id}</p>
+                  <div className="pt-6 border-t border-slate-100 grid grid-cols-2 gap-4">
+                    <div className="text-left">
+                      <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Assigned Slot</p>
+                      <p className="text-sm font-black text-orange-600">{bookingStatus.timeSlot}</p>
                     </div>
-                    <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sector</p>
-                      <p className="font-black text-slate-800">Inner Sanctum</p>
+                    <div className="text-right">
+                      <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1">Entry Zone</p>
+                      <p className="text-sm font-black text-slate-900">GATE ALPHA</p>
                     </div>
                   </div>
-
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 text-center">Time Slot Validity</p>
-                    <p className="text-xl font-black text-orange-600 text-center">{bookingStatus.timeSlot}</p>
-                  </div>
-                </div>
-
-                {/* QR Code Area */}
-                <div className="flex flex-col items-center justify-center space-y-3 pt-2">
-                  <div className="p-3 bg-white border-4 border-slate-100 rounded-3xl shadow-sm group">
-                    <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${bookingStatus.id}-${MOCK_USER.name}`} 
-                      alt="QR Code" 
-                      className="w-40 h-40 object-contain group-hover:scale-105 transition-transform duration-500"
-                    />
-                  </div>
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest text-center">Scan at Entry Gate (Gate A)</p>
                 </div>
               </div>
-
-              {/* Bottom Section - Tear-off style */}
-              <div className="bg-slate-50 p-4 border-t-2 border-dashed border-slate-200 relative">
-                {/* Decorative Side Cutouts */}
-                <div className="absolute -left-3 -top-3 w-6 h-6 bg-slate-900/80 rounded-full"></div>
-                <div className="absolute -right-3 -top-3 w-6 h-6 bg-slate-900/80 rounded-full"></div>
-
-                <div className="flex items-center justify-between">
-                  <div className="text-[10px] text-slate-400 font-medium">
-                    <p>Issue Date: Oct 2024</p>
-                    <p>Digital Security Hash: 8XF2-9921-JK0L</p>
-                  </div>
-                  <div className="flex space-x-2">
-                    <button className="p-2 bg-white rounded-xl shadow-sm border border-slate-200 hover:bg-slate-100 transition-colors">
-                      <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                      </svg>
-                    </button>
-                    <button className="p-2 bg-white rounded-xl shadow-sm border border-slate-200 hover:bg-slate-100 transition-colors">
-                      <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
+              <div className="bg-orange-50/50 p-6 text-center border-t border-orange-100">
+                 <p className="text-[10px] font-black text-orange-800 uppercase tracking-[0.2em] flex items-center justify-center">
+                   <span className="w-1.5 h-1.5 bg-orange-500 rounded-full mr-3 animate-pulse"></span>
+                   VALID FOR SINGLE ENTRY
+                 </p>
               </div>
             </div>
-
-            {/* Hint Text */}
-            <p className="mt-6 text-center text-white/60 text-[10px] font-bold uppercase tracking-widest">
-              Please present this pass to temple authorities upon request
-            </p>
           </div>
         </div>
       )}

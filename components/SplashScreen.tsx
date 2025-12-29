@@ -3,52 +3,56 @@ import React from 'react';
 
 export const SplashScreen: React.FC = () => {
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-orange-600 overflow-hidden">
-      {/* Background patterns */}
+    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center divine-gradient overflow-hidden">
       <div className="absolute inset-0 opacity-10 pointer-events-none">
-        <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_white_1px,_transparent_1px)] bg-[length:40px_40px]"></div>
+        <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_center,_white_1px,_transparent_1px)] bg-[length:60px_60px]"></div>
       </div>
       
-      {/* Floating decorative elements */}
-      <div className="absolute top-10 left-10 text-4xl opacity-20 animate-pulse">☸️</div>
-      <div className="absolute bottom-10 right-10 text-4xl opacity-20 animate-pulse delay-700">🪷</div>
-      <div className="absolute top-20 right-20 text-4xl opacity-20 animate-pulse delay-300">🕯️</div>
-      <div className="absolute bottom-20 left-20 text-4xl opacity-20 animate-pulse delay-500">🚩</div>
+      <div className="absolute top-20 left-[10%] text-6xl opacity-10 animate-[bounce_4s_infinite]">☸️</div>
+      <div className="absolute bottom-20 right-[15%] text-6xl opacity-10 animate-[bounce_5s_infinite_1s]">🪷</div>
+      <div className="absolute top-[30%] right-[10%] text-6xl opacity-10 animate-[pulse_3s_infinite]">🚩</div>
 
-      {/* Main Content */}
-      <div className="relative z-10 text-center space-y-6">
+      <div className="relative z-10 text-center space-y-10">
         <div className="relative inline-block">
-          {/* Outer glowing ring */}
-          <div className="absolute -inset-8 bg-orange-400/30 rounded-full blur-3xl animate-pulse"></div>
-          
-          <div className="relative text-[120px] leading-none animate-bounce drop-shadow-2xl">
+          <div className="absolute -inset-16 bg-white/20 rounded-full blur-[100px] animate-pulse"></div>
+          <div className="relative text-[160px] leading-none drop-shadow-[0_25px_25px_rgba(0,0,0,0.3)] animate-in zoom-in duration-1000">
             🕉️
           </div>
         </div>
         
-        <div className="space-y-2">
-          <h1 className="text-5xl font-black text-white tracking-tighter drop-shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="space-y-4">
+          <h1 className="text-7xl font-black text-white tracking-tighter drop-shadow-2xl animate-in slide-in-from-bottom-8 duration-1000">
             KumbhAI
           </h1>
-          <p className="text-orange-100 font-medium tracking-widest uppercase text-xs opacity-80 animate-in fade-in duration-1000 delay-300">
-            Smart Pilgrimage Management
-          </p>
+          <div className="flex items-center justify-center space-x-4">
+             <div className="h-[1px] w-8 bg-white/30"></div>
+             <p className="text-orange-100 font-black tracking-[0.5em] uppercase text-[10px] opacity-70 animate-in fade-in duration-[1.5s] delay-500">
+               Divine Crowd Intelligence
+             </p>
+             <div className="h-[1px] w-8 bg-white/30"></div>
+          </div>
         </div>
 
-        {/* Loading bar */}
-        <div className="w-48 h-1.5 bg-orange-800/40 rounded-full mx-auto mt-12 overflow-hidden border border-orange-400/20">
-          <div className="h-full bg-white rounded-full animate-[progress_4s_ease-in-out_forwards]"></div>
+        <div className="w-56 h-1.5 bg-orange-950/20 rounded-full mx-auto mt-20 overflow-hidden backdrop-blur-md border border-white/10">
+          <div className="h-full bg-white rounded-full animate-[progress_4.5s_cubic-bezier(.17,.67,.83,.67)_forwards] shadow-[0_0_15px_white]"></div>
         </div>
         
-        <p className="text-white/60 text-[10px] font-bold uppercase tracking-[0.2em] mt-4">
-          Harnessing Divine Intelligence
-        </p>
+        <div className="flex items-center justify-center space-x-3 text-white/40 text-[9px] font-black uppercase tracking-[0.3em] mt-8 animate-pulse">
+           <span>Loading Sanctuary Nodes</span>
+           <div className="flex space-x-1">
+              <span className="w-1 h-1 bg-white/40 rounded-full"></span>
+              <span className="w-1 h-1 bg-white/40 rounded-full"></span>
+              <span className="w-1 h-1 bg-white/40 rounded-full"></span>
+           </div>
+        </div>
       </div>
 
       <style>{`
         @keyframes progress {
-          0% { width: 0%; }
-          100% { width: 100%; }
+          0% { width: 0%; transform: translateX(-100%); }
+          20% { width: 30%; transform: translateX(0); }
+          50% { width: 60%; }
+          100% { width: 100%; transform: translateX(0); }
         }
       `}</style>
     </div>

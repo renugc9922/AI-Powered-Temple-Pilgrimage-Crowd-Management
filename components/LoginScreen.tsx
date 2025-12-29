@@ -6,12 +6,24 @@ interface LoginScreenProps {
   onLogin: (role: UserRole, identity: string) => void;
 }
 
-const AUTHORIZED_STAFF_IDS = ['STAFF123', '999988887777', 'ADMIN001', 'MEDIC99', 'POLICE100'];
+// Mock Registry provided by "Main Head"
+const STAFF_REGISTRY = [
+  { id: 'STAFF123', password: 'password123' },
+  { id: 'ADMIN001', password: 'admin@kumbh' },
+  { id: 'MEDIC99', password: 'medic@safe' },
+  { id: 'POLICE100', password: 'security@kumbh' }
+];
+
+type LoginStep = 'gate' | 'verify' | 'role';
+type UserPath = 'devotee' | 'authorized';
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
-  const [step, setStep] = useState<'verify' | 'role'>('verify');
+  const [step, setStep] = useState<LoginStep>('gate');
+  const [path, setPath] = useState<UserPath | null>(null);
   const [method, setMethod] = useState<LoginMethod>(LoginMethod.PHONE);
   const [value, setValue] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
@@ -23,18 +35,19 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const validate = () => {
     if (!value.trim()) return "Please enter your identification credentials.";
     
-    const cleanValue = value.replace(/\s/g, '');
-    
-    // Special bypass for demo key
-    if (cleanValue.toUpperCase() === 'STAFF123') return null;
+    if (path === 'authorized') {
+      if (!password.trim()) return "Password is required for authorized access.";
+      return null;
+    }
 
+    const cleanValue = value.replace(/\s/g, '');
     switch (method) {
       case LoginMethod.PHONE:
         return /^\d{10}$/.test(cleanValue) ? null : "Please enter a valid 10-digit mobile number.";
       case LoginMethod.AADHAR:
         return /^\d{12}$/.test(cleanValue) ? null : "Aadhar must be exactly 12 digits.";
       case LoginMethod.PAN:
-        return /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(value.toUpperCase()) ? null : "Invalid PAN format (e.g., ABCDE1234F).";
+        return /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(value.toUpperCase()) ? null : "Invalid PAN format.";
       case LoginMethod.EMAIL:
         return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? null : "Please enter a valid email address.";
       default:
@@ -52,242 +65,232 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
     setError(null);
     setIsVerifying(true);
     
-    // Simulate divine verification delay
     setTimeout(() => {
       setIsVerifying(false);
-      setStep('role');
+      const cleanID = value.toUpperCase().trim();
+      
+      if (path === 'authorized') {
+        const staff = STAFF_REGISTRY.find(s => s.id === cleanID && s.password === password);
+        if (!staff) {
+          setError("Access Denied: Invalid Staff ID or Password combination.");
+          return;
+        }
+        setStep('role');
+      } else {
+        // Devotees go straight to pilgrim dashboard
+        onLogin(UserRole.PILGRIM, value);
+      }
     }, 1500);
   };
 
-  const handleSelectRole = (role: UserRole) => {
-    const cleanValue = value.toUpperCase().replace(/\s/g, '');
-    const isStaff = role !== UserRole.PILGRIM;
-    const isAuthorized = AUTHORIZED_STAFF_IDS.includes(cleanValue);
-
-    if (isStaff && !isAuthorized) {
-      setError(`Sector Access Denied: ID "${value}" is not listed in the specialized command database.`);
-      return;
-    }
-
-    onLogin(role, value);
+  const selectPath = (selectedPath: UserPath) => {
+    setPath(selectedPath);
+    setMethod(selectedPath === 'devotee' ? LoginMethod.PHONE : LoginMethod.AADHAR);
+    setStep('verify');
+    setError(null);
+    setValue('');
+    setPassword('');
   };
 
   return (
     <div className={`min-h-screen bg-slate-50 flex items-center justify-center p-4 transition-opacity duration-1000 ${isMounted ? 'opacity-100' : 'opacity-0'}`}>
-      {/* Decorative background pattern */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden opacity-[0.03]">
         <div className="absolute -top-24 -left-24 w-96 h-96 border-[40px] border-orange-600 rounded-full"></div>
         <div className="absolute -bottom-24 -right-24 w-96 h-96 border-[40px] border-orange-600 rounded-full"></div>
       </div>
 
-      <div className="bg-white max-w-md w-full rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] overflow-hidden relative border border-slate-100 transform transition-all duration-500 hover:shadow-[0_30px_60px_rgba(249,115,22,0.15)]">
+      <div className="bg-white max-w-lg w-full rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.1)] overflow-hidden relative border border-slate-100 transform transition-all duration-500">
         
-        {/* Header Section */}
-        <div className="bg-gradient-to-br from-orange-500 to-orange-600 p-12 text-center text-white relative">
+        {/* Dynamic Header */}
+        <div className={`p-10 text-center text-white relative transition-colors duration-500 ${
+          path === 'authorized' ? 'bg-gradient-to-br from-slate-800 to-slate-950' : 'bg-gradient-to-br from-orange-500 to-orange-600'
+        }`}>
           <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
           <div className="relative z-10">
             <div className="inline-block p-4 bg-white/20 backdrop-blur-xl rounded-3xl mb-4 shadow-inner">
-              <span className="text-5xl drop-shadow-lg block animate-pulse">🕉️</span>
+              <span className="text-5xl drop-shadow-lg block animate-pulse">
+                {path === 'authorized' ? '🛡️' : '🕉️'}
+              </span>
             </div>
             <h1 className="text-3xl font-black tracking-tighter uppercase mb-1">KumbhAI</h1>
-            <p className="text-orange-100 text-xs font-bold tracking-[0.3em] uppercase opacity-80">Divine Gatekeeper</p>
+            <p className="text-white/80 text-[10px] font-black tracking-[0.2em] uppercase opacity-80">
+              {step === 'gate' ? 'Divine Gateway' : path === 'authorized' ? 'SECURE STAFF ACCESS' : 'DEVOTEE ENTRY'}
+            </p>
           </div>
-          <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 w-12 h-12 bg-white rotate-45 rounded-lg border-t border-l border-slate-100"></div>
         </div>
         
-        <div className="p-10 pt-12">
-          {step === 'verify' ? (
-            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700 fill-mode-both">
+        <div className="p-8 sm:p-10">
+          {step === 'gate' ? (
+            <div className="space-y-6 animate-in fade-in zoom-in-95 duration-700">
+              <div className="text-center mb-8">
+                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Identify Your Gateway</h2>
+                <p className="text-slate-400 text-sm mt-2">Choose the appropriate portal to continue.</p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4">
+                <GateOption 
+                  title="Pilgrims / Devotee"
+                  desc="Darshan pass, navigation & safety"
+                  icon="🙏"
+                  color="orange"
+                  onClick={() => selectPath('devotee')}
+                />
+                <GateOption 
+                  title="Authorized Member"
+                  desc="Security, Medical & Management"
+                  icon="👮"
+                  color="slate"
+                  onClick={() => selectPath('authorized')}
+                />
+              </div>
+            </div>
+          ) : step === 'verify' ? (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
+              <div className="flex items-center justify-between">
+                <button onClick={() => setStep('gate')} className="text-[10px] font-black text-slate-400 hover:text-orange-600 transition-colors flex items-center bg-slate-50 px-3 py-1.5 rounded-full">
+                  ← BACK
+                </button>
+                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Verification</span>
+              </div>
+
               <div className="text-center">
-                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Identity Access</h2>
-                <p className="text-slate-400 text-sm mt-2 font-medium">Verify your credentials to begin the journey.</p>
+                <h2 className="text-2xl font-black text-slate-900">{path === 'authorized' ? 'Staff Login' : 'Devotee Login'}</h2>
+                <p className="text-slate-400 text-sm mt-1">
+                  {path === 'authorized' ? 'Enter ID provided by Head Office' : 'Verify using mobile or ID card'}
+                </p>
               </div>
 
-              {/* Method Selection */}
-              <div className="grid grid-cols-4 gap-3">
-                {[
-                  { m: LoginMethod.PHONE, i: "📱", l: "Phone" },
-                  { m: LoginMethod.AADHAR, i: "🆔", l: "Aadhar" },
-                  { m: LoginMethod.PAN, i: "💳", l: "PAN" },
-                  { m: LoginMethod.EMAIL, i: "📧", l: "Email" }
-                ].map(({ m, i, l }) => (
-                  <button 
-                    key={m}
-                    onClick={() => { setMethod(m); setValue(''); setError(null); }}
-                    className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all duration-300 group ${
-                      method === m 
-                        ? 'bg-orange-50 border-orange-500 shadow-[0_8px_20px_-5px_rgba(249,115,22,0.3)] scale-105' 
-                        : 'bg-white border-slate-50 hover:border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span className={`text-2xl mb-1 group-hover:scale-110 transition-transform duration-300 ${method === m ? 'animate-bounce' : 'grayscale opacity-60'}`}>{i}</span>
-                    <span className={`text-[9px] font-black uppercase tracking-wider ${method === m ? 'text-orange-600' : 'text-slate-400'}`}>{l}</span>
-                  </button>
-                ))}
-              </div>
+              {path === 'devotee' && (
+                <div className="flex justify-center space-x-2">
+                  {[LoginMethod.PHONE, LoginMethod.AADHAR].map((m) => (
+                    <button 
+                      key={m}
+                      onClick={() => { setMethod(m); setValue(''); setError(null); }}
+                      className={`px-4 py-2 rounded-xl border-2 text-[10px] font-black uppercase tracking-widest transition-all ${
+                        method === m ? 'bg-orange-50 border-orange-500 text-orange-600 shadow-md scale-105' : 'bg-white border-slate-100 text-slate-300'
+                      }`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              )}
 
-              {/* Input Section */}
               <div className="space-y-3">
-                <div className="relative group">
+                <div className="relative">
                   <input 
-                    type={method === LoginMethod.EMAIL ? 'email' : 'text'}
+                    type="text"
                     value={value}
                     onChange={(e) => { setValue(e.target.value); setError(null); }}
-                    placeholder={
-                      method === LoginMethod.PHONE ? '9876543210' :
-                      method === LoginMethod.AADHAR ? '0000 0000 0000' :
-                      method === LoginMethod.PAN ? 'ABCDE1234F' : 'your@email.com'
-                    }
-                    className={`w-full p-5 bg-slate-50 border-2 ${error ? 'border-red-200 ring-4 ring-red-50' : 'border-slate-100'} rounded-3xl focus:ring-8 focus:ring-orange-500/10 focus:border-orange-500 outline-none font-bold text-slate-800 transition-all text-xl placeholder:text-slate-300 text-center tracking-tight`}
+                    placeholder={path === 'authorized' ? 'Unique Staff ID' : `Enter ${method}`}
+                    className={`w-full p-4 bg-slate-50 border-2 rounded-2xl focus:border-orange-500 outline-none font-bold text-slate-800 transition-all text-center ${error ? 'border-red-200' : 'border-slate-100'}`}
                   />
-                  {error && (
-                    <div className="absolute -top-12 left-0 right-0 animate-in fade-in slide-in-from-top-2 duration-300">
-                      <div className="bg-red-500 text-white text-[10px] font-bold px-4 py-2 rounded-full shadow-lg mx-auto w-fit flex items-center space-x-2">
-                        <span>⚠️</span>
-                        <span>{error}</span>
-                      </div>
-                    </div>
-                  )}
                 </div>
+
+                {path === 'authorized' && (
+                  <div className="relative">
+                    <input 
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => { setPassword(e.target.value); setError(null); }}
+                      placeholder="Security Password"
+                      className={`w-full p-4 bg-slate-50 border-2 rounded-2xl focus:border-slate-800 outline-none font-bold text-slate-800 transition-all text-center ${error ? 'border-red-200' : 'border-slate-100'}`}
+                    />
+                    <button 
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500 transition-colors"
+                    >
+                      {showPassword ? '👁️' : '🔒'}
+                    </button>
+                  </div>
+                )}
+                
+                {error && (
+                  <p className="text-[10px] text-red-500 font-bold text-center uppercase tracking-wider animate-pulse">{error}</p>
+                )}
               </div>
 
-              {/* Verify Button */}
               <button 
                 onClick={handleVerify}
                 disabled={isVerifying || !value.trim()}
-                className="w-full relative overflow-hidden group bg-slate-900 text-white py-6 rounded-3xl font-black hover:bg-black active:scale-[0.97] transition-all shadow-2xl shadow-slate-200 disabled:opacity-50 disabled:grayscale flex items-center justify-center space-x-3 text-sm tracking-[0.2em] uppercase"
+                className={`w-full text-white py-5 rounded-2xl font-black transition-all flex items-center justify-center space-x-3 text-sm tracking-widest uppercase shadow-xl active:scale-95 ${
+                  path === 'authorized' ? 'bg-slate-900 hover:bg-black' : 'bg-orange-600 hover:bg-orange-700'
+                }`}
               >
-                <div className="absolute inset-0 bg-gradient-to-r from-orange-500/0 via-white/5 to-orange-500/0 transform -translate-x-full group-hover:animate-[shimmer_2s_infinite]"></div>
                 {isVerifying ? (
                   <>
-                    <svg className="animate-spin h-5 w-5 text-orange-500" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>Consulting Records...</span>
+                    <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <span>Authenticating...</span>
                   </>
                 ) : (
-                  <span>Verify Identity</span>
+                  <span>Log In</span>
                 )}
               </button>
               
-              <div className="text-center">
-                <span className="text-[10px] text-slate-300 font-bold uppercase tracking-widest bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
-                  Authority Demo Key: <span className="text-slate-900 font-black">STAFF123</span>
-                </span>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-700 fill-mode-both">
-              <div className="flex items-center justify-between mb-2">
-                 <button 
-                  onClick={() => { setStep('verify'); setError(null); }}
-                  className="text-xs font-black text-slate-400 hover:text-orange-600 transition-colors flex items-center bg-slate-50 px-4 py-2 rounded-full border border-slate-100"
-                >
-                  <span className="mr-2">←</span> Change ID
-                </button>
-                <div className="flex items-center space-x-2 bg-green-50 px-4 py-2 rounded-full border border-green-100">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                  <span className="text-[10px] font-black text-green-700 uppercase">Authenticated</span>
-                </div>
-              </div>
-
-              <div className="text-center pb-4">
-                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Divine Calling</h2>
-                <p className="text-slate-400 text-sm mt-2 font-medium">Select your role to proceed into the Mela.</p>
-              </div>
-
-              {error && (
-                <div className="bg-red-50 border-2 border-red-100 p-5 rounded-3xl text-xs text-red-600 font-bold animate-shake">
-                  ⛔ {error}
+              {path === 'authorized' && (
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center">
+                   <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-2">Internal Staff Directory</p>
+                   <div className="flex flex-wrap justify-center gap-2">
+                      <span className="text-[8px] bg-white px-2 py-1 rounded border font-mono">ID: STAFF123 | Pass: password123</span>
+                      <span className="text-[8px] bg-white px-2 py-1 rounded border font-mono">ID: ADMIN001 | Pass: admin@kumbh</span>
+                   </div>
                 </div>
               )}
-              
+            </div>
+          ) : (
+            <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-700">
+              <div className="text-center pb-4">
+                <h2 className="text-2xl font-black text-slate-900">Station Allocation</h2>
+                <p className="text-slate-400 text-sm mt-1">Verification complete. Select your post.</p>
+              </div>
+
               <div className="grid grid-cols-1 gap-3">
-                <RoleOption 
-                  title="Pilgrim Access" 
-                  desc="Queue Position & Navigation" 
-                  icon="🚶" 
-                  onClick={() => handleSelectRole(UserRole.PILGRIM)}
-                  color="orange"
-                />
-                <RoleOption 
-                  title="Admin Operations" 
-                  desc="AI Predictions & Global Stats" 
-                  icon="📊" 
-                  onClick={() => handleSelectRole(UserRole.ADMIN)}
-                  restricted
-                  color="blue"
-                />
-                <RoleOption 
-                  title="Security Command" 
-                  desc="Real-time Sector Monitoring" 
-                  icon="👮" 
-                  onClick={() => handleSelectRole(UserRole.SECURITY)}
-                  restricted
-                  color="slate"
-                />
-                <RoleOption 
-                  title="Medical Triage" 
-                  desc="Field Hospital Coordination" 
-                  icon="🚑" 
-                  onClick={() => handleSelectRole(UserRole.MEDICAL)}
-                  restricted
-                  color="red"
-                />
+                <RoleCard title="Operations Admin" desc="Central Hub Command" icon="📊" color="blue" onClick={() => onLogin(UserRole.ADMIN, value)} />
+                <RoleCard title="Security Sector" desc="Crowd & Surveillance" icon="👮" color="slate" onClick={() => onLogin(UserRole.SECURITY, value)} />
+                <RoleCard title="Medical Support" desc="Emergency Triage" icon="🚑" color="red" onClick={() => onLogin(UserRole.MEDICAL, value)} />
               </div>
             </div>
           )}
         </div>
       </div>
-      
-      <style>{`
-        @keyframes shimmer {
-          100% { transform: translateX(100%); }
-        }
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-4px); }
-          75% { transform: translateX(4px); }
-        }
-        .animate-shake {
-          animation: shake 0.4s ease-in-out;
-        }
-      `}</style>
     </div>
   );
 };
 
-const RoleOption: React.FC<{ title: string; desc: string; icon: string; onClick: () => void; restricted?: boolean; color: string; }> = ({ title, desc, icon, onClick, restricted, color }) => {
-  const colorClasses: any = {
-    orange: 'hover:border-orange-500 hover:bg-orange-50 group-hover:bg-orange-100 text-orange-600',
-    blue: 'hover:border-blue-500 hover:bg-blue-50 group-hover:bg-blue-100 text-blue-600',
-    slate: 'hover:border-slate-800 hover:bg-slate-50 group-hover:bg-slate-200 text-slate-800',
-    red: 'hover:border-red-500 hover:bg-red-50 group-hover:bg-red-100 text-red-600'
-  };
+const GateOption: React.FC<{ title: string; desc: string; icon: string; color: 'orange' | 'slate'; onClick: () => void; }> = ({ title, desc, icon, color, onClick }) => (
+  <button onClick={onClick} className={`w-full flex items-center p-5 rounded-[1.5rem] border-2 transition-all group text-left ${
+    color === 'orange' ? 'border-orange-50 hover:border-orange-400 hover:bg-orange-50' : 'border-slate-50 hover:border-slate-400 hover:bg-slate-50'
+  }`}>
+    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-3xl mr-5 shadow-sm transition-transform group-hover:scale-110 ${
+      color === 'orange' ? 'bg-orange-100' : 'bg-slate-100'
+    }`}>
+      {icon}
+    </div>
+    <div className="flex-1">
+      <h3 className="font-black text-slate-900 text-base">{title}</h3>
+      <p className="text-[11px] text-slate-400 font-medium leading-tight">{desc}</p>
+    </div>
+    <div className="text-slate-200 group-hover:translate-x-1 transition-all">→</div>
+  </button>
+);
 
+const RoleCard: React.FC<{ title: string; desc: string; icon: string; color: string; onClick: () => void; }> = ({ title, desc, icon, color, onClick }) => {
+  const colorMap: Record<string, string> = {
+    blue: 'bg-blue-50 text-blue-600 border-blue-100 hover:border-blue-500',
+    slate: 'bg-slate-50 text-slate-600 border-slate-100 hover:border-slate-500',
+    red: 'bg-red-50 text-red-600 border-red-100 hover:border-red-500'
+  };
   return (
-    <button 
-      onClick={onClick}
-      className={`w-full text-left p-5 rounded-[1.8rem] border-2 transition-all duration-300 group flex items-center space-x-5 border-slate-50 bg-white hover:shadow-xl hover:shadow-slate-100 active:scale-[0.98] ${colorClasses[color].split(' group-hover')[0]}`}
-    >
-      <div className={`text-3xl w-14 h-14 rounded-2xl flex items-center justify-center bg-slate-50 transition-all duration-300 group-hover:scale-110 ${colorClasses[color].split('hover:')[2]}`}>
+    <button onClick={onClick} className={`w-full flex items-center p-4 rounded-2xl border-2 transition-all group ${colorMap[color]} text-left`}>
+      <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-xl mr-4 group-hover:rotate-12 transition-transform shadow-sm">
         {icon}
       </div>
       <div className="flex-1">
-        <div className="flex items-center">
-          <h3 className="font-black text-slate-900 text-base tracking-tight">{title}</h3>
-          {restricted && (
-            <span className="ml-3 text-[7px] bg-slate-900 text-white px-2 py-0.5 rounded-full font-black uppercase tracking-widest">Authorized</span>
-          )}
-        </div>
-        <p className="text-xs text-slate-400 font-medium mt-0.5">{desc}</p>
+        <h3 className="font-black text-slate-900 text-sm">{title}</h3>
+        <p className="text-[9px] text-slate-400 font-bold uppercase">{desc}</p>
       </div>
-      <div className="text-slate-200 group-hover:text-slate-900 transition-colors transform group-hover:translate-x-1 duration-300">
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-        </svg>
-      </div>
+      <span className="opacity-0 group-hover:opacity-100 transition-opacity">›</span>
     </button>
   );
 };

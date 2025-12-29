@@ -10,11 +10,10 @@ export async function getFastResponse(message: string) {
   const ai = getAIClient();
   try {
     const response = await ai.models.generateContent({
-      // Use 'gemini-flash-lite-latest' as per guidelines for flash lite models
       model: 'gemini-flash-lite-latest',
       contents: message,
       config: {
-        systemInstruction: "You are a helpful and quick Kumbh Mela assistant. Provide short, concise answers.",
+        systemInstruction: "You are a helpful and quick Kumbh Mela assistant. Provide short, concise answers. Use a polite and spiritual tone when appropriate.",
       }
     });
     return response.text;
@@ -45,44 +44,6 @@ export async function getSearchGroundedInfo(query: string) {
   } catch (error) {
     console.error("Search grounding failed:", error);
     return null;
-  }
-}
-
-/**
- * Veo Video Generation: Animates a photo
- */
-export async function generateVeoVideo(base64Image: string, prompt: string, aspectRatio: '16:9' | '9:16' = '16:9') {
-  const ai = getAIClient();
-  try {
-    let operation = await ai.models.generateVideos({
-      model: 'veo-3.1-fast-generate-preview',
-      prompt: prompt || 'Animate this spiritual temple scene with cinematic movement and divine atmosphere',
-      image: {
-        imageBytes: base64Image.split(',')[1] || base64Image,
-        mimeType: 'image/jpeg',
-      },
-      config: {
-        numberOfVideos: 1,
-        resolution: '720p',
-        aspectRatio: aspectRatio
-      }
-    });
-
-    while (!operation.done) {
-      await new Promise(resolve => setTimeout(resolve, 5000));
-      operation = await ai.operations.getVideosOperation({ operation: operation });
-    }
-
-    const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
-    const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
-    const blob = await response.blob();
-    return URL.createObjectURL(blob);
-  } catch (error: any) {
-    console.error("Veo generation failed:", error);
-    if (error.message?.includes("Requested entity was not found")) {
-      throw new Error("API_KEY_ERROR");
-    }
-    throw error;
   }
 }
 
@@ -129,9 +90,10 @@ export async function getCrowdAnalysis(currentData: any[]) {
 }
 
 /**
- * Generates imagery using gemini-3-pro-image-preview.
+ * Generates a high-quality temple image using gemini-3-pro-image-preview.
+ * This model is selected for its capability to handle 1K, 2K, and 4K resolutions.
  */
-export async function generateTempleImage(prompt: string, size: "1K" | "2K" | "4K" = "1K") {
+export async function generateTempleImage(prompt: string, imageSize: "1K" | "2K" | "4K") {
   const ai = getAIClient();
   try {
     const response = await ai.models.generateContent({
@@ -142,19 +104,72 @@ export async function generateTempleImage(prompt: string, size: "1K" | "2K" | "4
       config: {
         imageConfig: {
           aspectRatio: "1:1",
-          imageSize: size
+          imageSize: imageSize
         }
       }
     });
 
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
-      if (part.inlineData) {
-        return `data:image/png;base64,${part.inlineData.data}`;
+    const candidate = response.candidates?.[0];
+    if (candidate?.content?.parts) {
+      for (const part of candidate.content.parts) {
+        // Correctly find the image part in the response
+        if (part.inlineData) {
+          return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+        }
       }
     }
     return null;
   } catch (error: any) {
     console.error("Image generation failed:", error);
+    // Explicitly throw API_KEY_ERROR if requested entity not found, as per UI handling
+    if (error.message?.includes("Requested entity was not found")) {
+      throw new Error("API_KEY_ERROR");
+    }
+    throw error;
+  }
+}
+
+/**
+ * Generates an animated video from an image using the Veo model.
+ * Handles the multi-step operation polling and byte retrieval.
+ */
+export async function generateVeoVideo(imageBase64: string, prompt: string, aspectRatio: '16:9' | '9:16') {
+  const ai = getAIClient();
+  try {
+    // Clean base64 data if it includes a data URL prefix
+    const base64Data = imageBase64.split(',')[1] || imageBase64;
+    
+    let operation = await ai.models.generateVideos({
+      model: 'veo-3.1-fast-generate-preview',
+      prompt: prompt || 'Animate this image showing the spiritual atmosphere of Kumbh Mela',
+      image: {
+        imageBytes: base64Data,
+        mimeType: 'image/png',
+      },
+      config: {
+        numberOfVideos: 1,
+        resolution: '720p',
+        aspectRatio: aspectRatio
+      }
+    });
+
+    // Poll for the long-running video generation operation
+    while (!operation.done) {
+      await new Promise(resolve => setTimeout(resolve, 10000));
+      operation = await ai.operations.getVideosOperation({ operation: operation });
+    }
+
+    const downloadLink = operation.response?.generatedVideos?.[0]?.video?.uri;
+    if (!downloadLink) return null;
+
+    // Fetch the MP4 bytes from the provided URI, appending the API key as required
+    const response = await fetch(`${downloadLink}&key=${process.env.API_KEY}`);
+    if (!response.ok) throw new Error("Failed to download generated video");
+    
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
+  } catch (error: any) {
+    console.error("Video generation failed:", error);
     if (error.message?.includes("Requested entity was not found")) {
       throw new Error("API_KEY_ERROR");
     }

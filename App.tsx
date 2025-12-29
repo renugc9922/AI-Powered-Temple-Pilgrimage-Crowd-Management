@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { UserRole, Alert } from './types';
+import { UserRole, Alert, Severity } from './types';
 import { Layout } from './components/Layout';
 import { AdminDashboard } from './components/AdminDashboard';
 import { PilgrimDashboard } from './components/PilgrimDashboard';
@@ -36,6 +36,16 @@ const App: React.FC = () => {
   const handleLogout = () => {
     setIsAuthenticated(false);
     setUserIdentity('');
+  };
+
+  const handleAddAlert = (newAlertData: Omit<Alert, 'id' | 'timestamp' | 'resolved'>) => {
+    const newAlert: Alert = {
+      ...newAlertData,
+      id: Math.random().toString(36).substr(2, 9),
+      timestamp: new Date().toISOString(),
+      resolved: false
+    };
+    setAlerts(prev => [newAlert, ...prev]);
   };
 
   const triggerSOS = (lat?: number, lng?: number) => {
@@ -78,7 +88,7 @@ const App: React.FC = () => {
   return (
     <Layout role={role} onLogout={handleLogout}>
       {role === UserRole.PILGRIM ? (
-        <PilgrimDashboard onTriggerSOS={triggerSOS} />
+        <PilgrimDashboard identity={userIdentity} onTriggerSOS={triggerSOS} />
       ) : (
         <AdminDashboard 
           alerts={alerts} 
@@ -86,6 +96,7 @@ const App: React.FC = () => {
           onResolve={toggleAlertResolve} 
           onClearResolved={clearResolvedAlerts} 
           onClearAll={clearAllAlerts}
+          onAddAlert={handleAddAlert}
         />
       )}
     </Layout>

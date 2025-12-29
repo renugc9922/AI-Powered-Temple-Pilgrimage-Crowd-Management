@@ -13,6 +13,8 @@ export enum LoginMethod {
   EMAIL = 'EMAIL'
 }
 
+export type Severity = 'Info' | 'Warning' | 'Emergency' | 'Critical';
+
 export interface CrowdData {
   location: string;
   count: number;
@@ -25,7 +27,7 @@ export interface CrowdData {
 export interface Alert {
   id: string;
   type: 'Crowd' | 'Medical' | 'Security' | 'Emergency';
-  severity: 'Info' | 'Warning' | 'Emergency' | 'Critical';
+  severity: Severity;
   message: string;
   location: string;
   timestamp: string;
@@ -42,9 +44,6 @@ export interface DarshanBooking {
   estimatedWaitMinutes: number;
 }
 
-// FIX: Declare aistudio as a global variable within the global namespace.
-// Using 'var' in 'declare global' is the standard way to extend the global scope in modules
-// and avoids "identical modifiers" errors that can occur when extending the Window interface directly.
 declare global {
   interface AIStudio {
     hasSelectedApiKey: () => Promise<boolean>;
